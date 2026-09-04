@@ -179,7 +179,7 @@ and Password empty, as shown in Figure~\ref{fig:q1-2-edit-payload}:
 ', Salary=1605 WHERE ID=2 --
 \end{lstlisting}
 
-\drfigure{figures/q1-2-edit-payload.png}{The injected NickName payload entered on Ted's Edit Profile form.}{fig:q1-2-edit-payload}
+\drfigure[0.485\linewidth]{figures/q1-2-edit-payload.png}{The injected NickName payload entered on Ted's Edit Profile form.}{fig:q1-2-edit-payload}
 
 Substituting this into the \texttt{else} branch's \texttt{\$sql}, with
 Ted's session \texttt{\$id} equal to \texttt{5}, produces the raw statement:
@@ -216,7 +216,7 @@ Password field left blank), which loads Boby's profile directly from his row
 in \texttt{credential}. Figure~\ref{fig:q1-2-boby-profile-salary} shows the
 result:
 
-\drfigure{figures/q1-2-boby-profile-salary.png}{Boby's profile after the attack, showing Salary updated to 1605.}{fig:q1-2-boby-profile-salary}
+\drfigure[0.485\linewidth]{figures/q1-2-boby-profile-salary.png}{Boby's profile after the attack, showing Salary updated to 1605.}{fig:q1-2-boby-profile-salary}
 
 Boby's Salary field now reads \texttt{1605}, matching SALARY\_1 for student
 s4041605. Employee ID (20000), Birth (4/20), and SSN (10213352) are unchanged
@@ -276,7 +276,7 @@ Figure~\ref{fig:q1-3-edit-payload}:
   \item Phone Number: \texttt{' WHERE ID=2\#}
 \end{itemize}
 
-\drfigure{figures/q1-3-edit-payload.png}{The injected values entered on Ted's Edit Profile form, with the payload in Phone Number.}{fig:q1-3-edit-payload}
+\drfigure[0.485\linewidth]{figures/q1-3-edit-payload.png}{The injected values entered on Ted's Edit Profile form, with the payload in Phone Number.}{fig:q1-3-edit-payload}
 
 Substituting these into \texttt{\$sql}, with Ted's session \texttt{\$id}
 equal to \texttt{5}, produces the raw statement:
@@ -304,7 +304,7 @@ I verified the result the same way as Q1.2: logging out and back in as Boby
 (\texttt{Boby'\#}, Password blank). Figure~\ref{fig:q1-3-boby-profile-updated}
 shows the result:
 
-\drfigure{figures/q1-3-boby-profile-updated.png}{Boby's profile after the attack, showing the updated NickName, Email, and Address.}{fig:q1-3-boby-profile-updated}
+\drfigure[0.485\linewidth]{figures/q1-3-boby-profile-updated.png}{Boby's profile after the attack, showing the updated NickName, Email, and Address.}{fig:q1-3-boby-profile-updated}
 
 Boby's profile now shows NickName \texttt{Tran Dinh Hai}, Email
 \texttt{s4041605@rmit.edu.vn}, and Address \texttt{RMIT}, exactly as
@@ -327,9 +327,96 @@ password or Boby's password at any point.
 
 \dranswer
 
-\drtodo{Identify the vulnerable queries in \path{unsafe_view_order.php} and \path{unsafe_tasks_view.php}, trace attacker-controlled data into them, and add genuine source evidence.}
+This attack relies on two vulnerable statements working together: one that
+lets an attacker store arbitrary text unchecked, and one that later reads
+that text back and executes it as part of a new query.
 
-\drfigurestub{Vulnerable task queries identified for Q1.4.}{fig:q1-4-vulnerable-queries}
+\paragraph{Vulnerable query 1: writing the sort preference (\texttt{unsafe\_view\_order.php}).}
+
+\begin{lstlisting}[language=PHP,aboveskip=0pt]
+$newfavourite = $_POST["favourite"] . " ";
+$newfavourite.= $_POST["order"];
+
+if($prefid!=""){
+    $sql2 = "UPDATE preference SET favourite='$newfavourite' where PreferenceID=$prefid;";
+}else{
+    $sql2 = "INSERT INTO preference(favourite,Owner) VALUES ('$newfavourite', $id);";
+}
+...
+$conn->query($sql2);
+\end{lstlisting}
+
+\texttt{\$\_POST["favourite"]} and \texttt{\$\_POST["order"]} are taken
+directly from the request with no validation -- there is no check that
+\texttt{favourite} names a real column (\texttt{Name}, \texttt{Hours},
+\texttt{Amount}, \texttt{Description}, \texttt{Type}) or that \texttt{order}
+is \texttt{asc}/\texttt{desc}. The two are concatenated into
+\texttt{\$newfavourite} and written straight into the \texttt{preference}
+table's \texttt{favourite} column via string interpolation, with no
+escaping. This statement is itself injectable (an attacker could break out
+of the \texttt{'\$newfavourite'} literal the same way as in Q1.2/Q1.3), but
+its more significant role here is that it lets an attacker persist
+\emph{any} string, unchecked, for later use.
+
+\paragraph{Vulnerable query 2: reading and ordering tasks (\texttt{unsafe\_tasks\_view.php}).}
+
+\vspace{-18pt}
+\begin{lstlisting}[language=PHP,aboveskip=0pt]
+$sql = "select favourite from preference where owner=$id limit 1";
+...
+$favourite = $json_a[0]['favourite'];
+if($favourite==""){
+    $favourite = "hours desc";
+}
+
+$sql1 = "select tasks.Name as taskname, credential.Name as ownername, tasks.Hours,tasks.Amount,tasks.Description,tasks.Type
+from tasks, credential where tasks.owner=credential.ID and tasks.owner=$id "
+. "order by tasks." . $favourite ;
+
+$queryList = explode(";",$sql1);
+
+foreach($queryList as $subquery){
+    if(strlen($subquery)>0) {
+        if (!$tempResult = $conn->query($subquery)) {
+            die('There was an error running the query [' . $conn->error . ']\n');
+        }
+        ...
+    }
+}
+\end{lstlisting}
+
+The stored \texttt{favourite} value is read back from \texttt{preference}
+and concatenated, unquoted and unescaped, directly after the literal text
+\texttt{order by tasks.} to build \texttt{\$sql1}. Because it is never
+checked against a whitelist of column names, an attacker who controls its
+content controls part of the SQL text itself, not just a data value. Worse,
+the script then calls \texttt{explode(";", \$sql1)} and executes
+\emph{every} non-empty resulting fragment as its own independent query via
+\texttt{\$conn->query(\$subquery)} inside the loop. This is a stacked-query
+mechanism built into the application: if \texttt{favourite} contains a
+\texttt{;} followed by a second complete SQL statement, that second
+statement is executed exactly as if the attacker had submitted it directly.
+
+\paragraph{Why this is exploitable: the complete data flow.} An
+authenticated user (an attacker needs no special privilege beyond a normal
+session) submits the Set View Preference form with crafted
+\texttt{favourite}/\texttt{order} values instead of the intended dropdown
+selection and \texttt{asc}/\texttt{desc} text. Query~1 persists this
+crafted string verbatim into that user's row in \texttt{preference}, with no
+validation. When the same user opens View Tasks, Query~2 reads that string
+back out of the database and splices it, still unvalidated, into a new
+\texttt{SELECT} immediately after \texttt{order by tasks.}. Because the
+resulting statement is split on \texttt{;} and each fragment is executed
+separately, a \texttt{favourite} value of the form
+\texttt{<valid column>; <second SELECT statement>} causes the second
+statement to run as a genuinely separate query against the same database
+connection -- for example, one that replaces the intended restriction
+\texttt{tasks.owner=\$id} with \texttt{tasks.owner=userIdMaxTasks()}, so it
+returns another user's tasks instead of the attacker's own. Query~1 is the
+injection point (no input validation on write); Query~2 is where the stored
+payload is later parsed apart and executed (no output validation on read,
+plus explicit multi-statement execution). Neither vulnerability alone
+completes the attack -- Q1.5 exploits both together.
 
 
 \drquestion{Q1.5}{Display the maximum-task user's tasks}{%
@@ -342,7 +429,112 @@ password or Boby's password at any point.
 
 \dranswer
 
-% The Q1.5 self-reference above is reproduced from the official brief.
-\drtodo{Record the exact injected input and resulting SQL statements. Add genuine evidence identifying the user returned by \texttt{userIdMaxTasks()} and showing that the View Tasks page displays that user's tasks, then explain the complete data flow.}
+\paragraph{Step 1: submit the payload.} This attack needs both vulnerable
+statements from Q1.4 to work together. Query~1 is where I plant the
+malicious text; Query~2 is where that text later gets executed. While logged
+in as Ted, I opened Set View Preference and filled in the form as shown in
+Figure~\ref{fig:q1-5-preference-payload}:
 
-\drfigurestub{Successful display of the maximum-task user's tasks for Q1.5.}{fig:q1-5-maximum-tasks}
+\begin{itemize}
+  \item Sort field dropdown (\texttt{favourite}): \texttt{Hours}
+  \item Asc or Desc field (\texttt{order}):
+\end{itemize}
+
+\begin{lstlisting}
+;
+select tasks.Name as taskname, credential.Name as ownername, tasks.Hours, tasks.Amount, tasks.Description, tasks.Type
+from tasks, credential
+where tasks.owner=credential.ID and tasks.owner=userIdMaxTasks()
+\end{lstlisting}
+
+\drfigure{figures/q1-5-preference-payload.png}{The Set View Preference form with \texttt{Hours} selected and the injected statement in the Asc or Desc field.}{fig:q1-5-preference-payload}
+
+Picking a real column name (\texttt{Hours}) for the dropdown keeps the first
+half of the eventual statement valid SQL. The rest of the attack, a
+complete second SQL statement, is typed straight into the free-text
+\texttt{order} box. That field has no character restrictions and the form
+submits it as an ordinary POST request, so no proxy or browser console was
+needed to send it.
+
+\paragraph{Step 2: how the payload is stored.} Query~1 combines the two
+submitted fields into one string:
+
+\begin{lstlisting}
+$newfavourite = $_POST["favourite"] . " ";
+$newfavourite.= $_POST["order"];
+\end{lstlisting}
+
+With the values above, this builds:
+
+\begin{lstlisting}
+Hours ;
+select tasks.Name as taskname, credential.Name as ownername, tasks.Hours, tasks.Amount, tasks.Description, tasks.Type
+from tasks, credential
+where tasks.owner=credential.ID and tasks.owner=userIdMaxTasks()
+\end{lstlisting}
+
+Ted already had a row in \texttt{preference}, so this string is written into
+it unchanged by Query~1's \texttt{UPDATE} branch, with no check on its
+content.
+
+\paragraph{Step 3: how the payload is executed.} When View Tasks next loads
+for Ted, Query~2 reads that same string back out of the database as
+\texttt{\$favourite} and appends it to the end of a new query it is
+building. With Ted's session \texttt{\$id} equal to \texttt{5}, the
+resulting \texttt{\$sql1} is (shown here broken across lines for
+readability; PHP and MySQL both treat it as one continuous string, with no
+real line breaks):
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+select tasks.Name as taskname, credential.Name as ownername, tasks.Hours, tasks.Amount, tasks.Description, tasks.Type
+from tasks, credential
+where tasks.owner=credential.ID and tasks.owner=5
+order by tasks.Hours
+;
+select tasks.Name as taskname, credential.Name as ownername, tasks.Hours, tasks.Amount, tasks.Description, tasks.Type
+from tasks, credential
+where tasks.owner=credential.ID and tasks.owner=userIdMaxTasks()
+\end{lstlisting}
+
+The semicolon in the middle is the one I typed in the \texttt{order} field.
+Query~2 then runs \texttt{explode(";", \$sql1)}, which cuts this single
+string into two separate pieces wherever a semicolon appears, and its
+\texttt{foreach} loop sends each non-empty piece to the database as its own,
+independent query. The table below explains what each of the two resulting
+queries does:
+
+{\footnotesize
+\begin{tabularx}{\linewidth}{lXX}
+\toprule
+\textbf{Query} & \textbf{Restriction on \texttt{tasks.owner}} & \textbf{What it returns} \\
+\midrule
+1: the original, legitimate half & \texttt{tasks.owner=5} -- Ted's own session ID, placed there by the application itself & Ted's own declared tasks, sorted by Hours \\
+2: the half I injected & \texttt{tasks.owner=userIdMaxTasks()} -- a function call I supplied, with no connection to who is logged in & The declared tasks of whichever user currently has the most tasks, joined with \texttt{credential} so that user's name is shown too \\
+\bottomrule
+\end{tabularx}
+\par}
+
+\paragraph{Step 4: the result.} Figure~\ref{fig:q1-5-tasks-view-two-tables}
+shows the View Tasks page after this request. It renders two separate
+tables, one for each query above. The first table lists Ted's own two tasks
+(\textit{Back-end dev1}, 30 hours; \textit{Front-end dev2}, 40 hours). The
+second table lists four tasks, and every one of them has Task Owner
+\texttt{Alice} (\textit{On-site client requirement collection},
+\textit{Business Analysis}, \textit{Demo App to client}, \textit{Design
+System Architecture1}).
+
+\drfigure{figures/q1-5-tasks-view-two-tables.png}{View Tasks after the attack, showing Ted's own tasks and, in the second table, Alice's tasks returned by the injected query.}{fig:q1-5-tasks-view-two-tables}
+
+The second table is the direct output of Query~2's injected half, so
+\texttt{userIdMaxTasks()} resolved to Alice's user ID in the database at the
+time of this request. This matches \texttt{sqllab\_users.sql}, where Alice
+(\texttt{ID=1}) is declared four tasks in the original seed data, more than
+any other user.
+
+\paragraph{Conclusion.} An attacker-controlled string, stored with no
+checks by Query~1, was later cut apart and run as a second, independent SQL
+statement by Query~2. That second statement ignored the restriction that
+should have limited results to the logged-in user and instead returned the
+declared tasks of the user with the most tasks overall, without that user's
+identity or credentials ever being entered anywhere in the attack. This is
+the complete attack the question asks for.
