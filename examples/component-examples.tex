@@ -1,0 +1,41 @@
+% This file is a component library and is not included in the report build.
+% Copy only the components you need into a section file.
+
+% ---------------------------------------------------------------- Question --
+\drquestion{Q2.1}{Short Table of Contents description}{%
+  Paste the exact Assignment 3 question here.
+}
+\dranswer
+Write the answer here.
+
+% ------------------------------------------------------------------ Figure --
+% Real evidence image:
+% \drfigure{figures/example.png}{Concise evidence caption.}{fig:example}
+
+% Use this form until the genuine evidence image exists:
+\drfigurestub{Description of the evidence still required.}{fig:example-stub}
+
+% ---------------------------------------------------------------- Listing --
+\begin{lstlisting}[language=bash]
+# Paste a command that was genuinely executed.
+command --option value
+\end{lstlisting}
+
+% ------------------------------------------------------------------- Table --
+\begin{table}[htbp]
+  \centering
+  \footnotesize
+  \renewcommand{\arraystretch}{1.28}
+  \caption{Descriptive table caption.}
+  \rowcolors{2}{drpale}{white}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}m{0.30\linewidth}>{\raggedright\arraybackslash}m{0.66\linewidth}@{}}
+    \toprule
+    \rowcolor{drnavy}
+    \color{white}\textbf{Item} & \color{white}\textbf{Explanation}\\
+    \midrule
+    \drid{A} & Replace with verified content.\\
+    \drid{B} & Replace with verified content.\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+

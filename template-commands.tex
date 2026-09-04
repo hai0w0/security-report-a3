@@ -1,0 +1,30 @@
+% Reusable question and answer headings. The second argument is the short
+% description displayed in the Table of Contents.
+\NewDocumentCommand{\drquestion}{m m +m}{%
+  \subsubsection*{\drid{#1}\enspace #3}%
+  \addcontentsline{toc}{subsubsection}{#1: #2}%
+}
+\NewDocumentCommand{\dranswer}{}{%
+  \par\noindent{\color{drred}\bfseries Answer}\par
+}
+
+% The shared listings "SQL" language only recognises "--" as a line comment
+% and lexes strings by counting quote characters. Our exploited statements
+% also use MySQL's "#" line comment (e.g. Q1.1, Q1.3), and because the
+% injected payload deliberately leaves an odd, mismatched number of quotes in
+% the raw (pre-comment) statement, the automatic lexer cannot reliably tell
+% where a "#" comment starts -- it keeps counting quotes as if everything
+% were still inside a string, so that text is wrongly coloured as a string
+% instead of a comment. (A plain \color escape does not fix this: listings
+% re-applies its own per-character style on every following glyph, so a bare
+% colour switch never survives past the next character.) The correct fix is
+% moredelim's "is" (inline style) delimiter type, which properly integrates
+% with listings' own per-character styling engine. Text between a pair of
+% "~" characters in ANY lstlisting is forced into the same muted/italic look
+% as a native "--" comment, and the "~" characters themselves are not
+% printed. Wrap the discarded suffix of a raw statement in "~...~" in every
+% future listing that comments via "#" instead of "--" (choose a different,
+% unused delimiter character for that one listing if "~" ever needs to
+% appear literally in the shown text).
+\lstset{moredelim=[is][\color{drmuted}\itshape]{~}{~}}
+

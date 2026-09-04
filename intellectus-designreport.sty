@@ -1,0 +1,666 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{intellectus-designreport}[2026/08/10 v0.1 Group design report template]
+
+% Companion to intellectus-labreport.sty, but for multi-author design documents:
+% numbered sections, table of contents, numbered/captioned figures and tables,
+% an assumptions register, a message dictionary, and figure stubs that carry a
+% real caption and label before the artwork exists.
+
+\RequirePackage{iftex}
+% The template asks for 9.5pt in a few places (notes, figure stubs). Computer
+% Modern only ships discrete sizes, so without this every note carrying inline
+% maths or \ttfamily raises "font shape ... in size <9.5> not available".
+\RequirePackage{anyfontsize}
+\ifPDFTeX
+  \RequirePackage[T1]{fontenc}
+  \RequirePackage[utf8]{inputenc}
+  \RequirePackage{lmodern}         % scalable Type1 text/mono at any size
+  \RequirePackage[scaled=0.95]{helvet}
+  \renewcommand{\familydefault}{\sfdefault}
+\else
+  \RequirePackage{fontspec}
+  \defaultfontfeatures{Ligatures=TeX}
+  \IfFontExistsTF{arial.ttf}{
+    \setmainfont{arial}[
+      Extension=.ttf,
+      UprightFont=*,
+      ItalicFont=*i,
+      BoldFont=*bd,
+      BoldItalicFont=*bi
+    ]
+    \setsansfont{arial}[
+      Extension=.ttf,
+      UprightFont=*,
+      ItalicFont=*i,
+      BoldFont=*bd,
+      BoldItalicFont=*bi
+    ]
+  }{
+    \setmainfont{texgyreheros}[
+      Extension=.otf,
+      UprightFont=*-regular,
+      ItalicFont=*-italic,
+      BoldFont=*-bold,
+      BoldItalicFont=*-bolditalic
+    ]
+    \setsansfont{texgyreheros}[
+      Extension=.otf,
+      UprightFont=*-regular,
+      ItalicFont=*-italic,
+      BoldFont=*-bold,
+      BoldItalicFont=*-bolditalic
+    ]
+  }
+  % Without an explicit mono, \ttfamily falls back to bitmap cmtt and XeTeX
+  % embeds generated .pk bitmaps in the PDF.
+  \IfFontExistsTF{consola.ttf}{
+    \setmonofont{consola}[
+      Extension=.ttf,
+      UprightFont=*,
+      ItalicFont=*i,
+      BoldFont=*b,
+      BoldItalicFont=*z,
+      Scale=MatchLowercase
+    ]
+  }{
+    \setmonofont{texgyrecursor}[
+      Extension=.otf,
+      UprightFont=*-regular,
+      ItalicFont=*-italic,
+      BoldFont=*-bold,
+      BoldItalicFont=*-bolditalic,
+      Scale=MatchLowercase
+    ]
+  }
+  \renewcommand{\familydefault}{\sfdefault}
+\fi
+
+\RequirePackage[
+  a4paper,
+  left=0.95in,
+  right=0.95in,
+  top=0.92in,
+  bottom=0.68in,
+  headheight=32pt,
+  headsep=10pt,
+  footskip=24pt,
+  includeheadfoot
+]{geometry}
+\RequirePackage[table]{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{float}
+\RequirePackage{fancyhdr}
+\RequirePackage{titlesec}
+\RequirePackage{xparse}
+\RequirePackage{listings}
+\RequirePackage{array}
+\RequirePackage{booktabs}
+\RequirePackage{tabularx}
+\RequirePackage{longtable}
+\RequirePackage{enumitem}
+\RequirePackage{caption}
+\RequirePackage[hidelinks]{hyperref}
+% Reference URLs are long and contain no breakable characters that \url would
+% use by default; xurl lets them wrap anywhere instead of running past the
+% margin.
+\RequirePackage{xurl}
+
+\definecolor{drnavy}{HTML}{0D2841}
+\definecolor{drred}{HTML}{E32A1F}
+\definecolor{drink}{HTML}{152433}
+\definecolor{drcode}{HTML}{F5F7FA}
+\definecolor{drline}{HTML}{D8E0E7}
+\definecolor{drmuted}{HTML}{60717F}
+\definecolor{drpale}{HTML}{F1F5F8}
+\definecolor{drpalered}{HTML}{FCEBE9}
+\definecolor{drpaleamber}{HTML}{FFF6E5}
+
+\makeatletter
+
+\edef\dr@markasset{\@currpath assets/source-brand-mark.png}
+\edef\dr@logoasset{\@currpath assets/rmit-university-logo.png}
+
+% ---------------------------------------------------------------- metadata --
+\newcommand{\dr@course}{EEET2588 Real-Time Systems Engineering}
+\newcommand{\dr@title}{Traffic Light Control System}
+\newcommand{\dr@subtitle}{Initial Design Report}
+\newcommand{\dr@lecturer}{Dr. Tran Duc Linh and Dr. Pham Viet Hung}
+\newcommand{\dr@group}{Group N}
+\newcommand{\dr@date}{\today}
+\newcommand{\dr@brandname}{RMIT}
+\newif\ifdr@custombrand
+\dr@custombrandfalse
+
+\newcommand{\drcourse}[1]{\gdef\dr@course{#1}}
+\newcommand{\drtitle}[1]{\gdef\dr@title{#1}}
+\newcommand{\drsubtitle}[1]{\gdef\dr@subtitle{#1}}
+\newcommand{\drlecturer}[1]{\gdef\dr@lecturer{#1}}
+\newcommand{\drgroup}[1]{\gdef\dr@group{#1}}
+\newcommand{\drdate}[1]{\gdef\dr@date{#1}}
+\newcommand{\drbrandname}[1]{%
+  \gdef\dr@brandname{#1}%
+  \global\dr@custombrandtrue
+}
+
+% Team roster. Call \drmember{Name}{Student ID}{Primary responsibility} once
+% per member in the preamble; the cover and Appendix A both read this list.
+\newcommand{\dr@members}{}
+\newcommand{\dr@memberrow}[3]{}
+\newcommand{\drmember}[3]{%
+  \g@addto@macro\dr@members{\dr@memberrow{#1}{#2}{#3}}%
+}
+
+% ------------------------------------------------------------------- brand --
+\newcommand{\dr@mark}[1]{%
+  \IfFileExists{\dr@markasset}{%
+    \includegraphics[height=#1]{\dr@markasset}%
+  }{%
+    {\color{drred}\rule{#1}{#1}}%
+  }%
+}
+
+\newcommand{\dr@defaultcoverlogo}{%
+  \begingroup
+  \ifdr@custombrand
+    \dr@mark{0.36in}\hspace{0.08in}%
+    \raisebox{0.055in}{\fontsize{23}{23}\selectfont\bfseries\dr@brandname}%
+  \else
+    \IfFileExists{\dr@logoasset}{%
+      \includegraphics[height=0.42in]{\dr@logoasset}%
+    }{%
+      \dr@mark{0.36in}\hspace{0.08in}%
+      \raisebox{0.055in}{\fontsize{23}{23}\selectfont\bfseries\dr@brandname}%
+    }%
+  \fi
+  \endgroup
+}
+
+\newcommand{\dr@defaultheaderlogo}{%
+  \begingroup
+  \ifdr@custombrand
+    \dr@mark{0.18in}\hspace{0.045in}%
+    \raisebox{0.028in}{\fontsize{11}{11}\selectfont\bfseries\dr@brandname}%
+  \else
+    \IfFileExists{\dr@logoasset}{%
+      \includegraphics[height=0.21in]{\dr@logoasset}%
+    }{%
+      \dr@mark{0.18in}\hspace{0.045in}%
+      \raisebox{0.028in}{\fontsize{11}{11}\selectfont\bfseries\dr@brandname}%
+    }%
+  \fi
+  \endgroup
+}
+
+\newcommand{\dr@coverlogo}{\dr@defaultcoverlogo}
+\newcommand{\dr@headerlogo}{\dr@defaultheaderlogo}
+\newcommand{\drcoverlogo}[1]{\gdef\dr@coverlogo{#1}}
+\newcommand{\drheaderlogo}[1]{\gdef\dr@headerlogo{#1}}
+
+% ------------------------------------------------------- header and footer --
+\fancypagestyle{designreport}{%
+  \fancyhf{}
+  \fancyhead[L]{\dr@headerlogo}
+  \fancyhead[R]{%
+    \color{drmuted}\fontsize{8}{10}\selectfont
+    \MakeUppercase{\dr@course}%
+  }
+  \fancyfoot[L]{}
+  \fancyfoot[R]{%
+    \color{drnavy}\fontsize{15.75}{18}\selectfont\bfseries
+    \thepage%
+  }
+  \renewcommand{\headrulewidth}{0.5pt}
+  \renewcommand{\headrule}{%
+    \hbox to\headwidth{%
+      \color{drline}\leaders\hrule height \headrulewidth\hfill
+    }\vskip-\headrulewidth
+  }
+  \renewcommand{\footrulewidth}{0pt}
+}
+\pagestyle{designreport}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{7pt plus 1pt minus 1pt}
+\linespread{1.045}
+
+% Arial is a wide face and the text block is narrow; without a little slack the
+% justifier reports overfull lines it could otherwise absorb.
+\setlength{\emergencystretch}{2em}
+
+% Ragged-right paragraph column. Justifying 3--4 word cells in a 0.1\linewidth
+% column is what produces every "Underfull \hbox (badness ...)" in the tables.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% ---------------------------------------------------------------- headings --
+\titleformat{\section}
+  {\normalfont\bfseries\fontsize{19}{23}\selectfont\color{drnavy}}
+  {\thesection.\hspace{0.55em}}{0pt}{}
+\titlespacing*{\section}{0pt}{20pt}{12pt}
+
+\titleformat{\subsection}
+  {\normalfont\bfseries\fontsize{13}{16}\selectfont\color{drnavy}}
+  {%
+    \raisebox{-0.12em}{\color{drred}\rule{3pt}{1.05em}}%
+    \hspace{0.65em}%
+    \thesubsection%
+  }{0.5em}{}
+\titlespacing*{\subsection}{0pt}{16pt}{7pt}
+
+% Add a full stop after top-level section numbers in the contents without
+% changing figure, table, or subsection numbering.
+\let\dr@original@sectionline\l@section
+\renewcommand{\l@section}[2]{%
+  \begingroup
+  \let\dr@original@numberline\numberline
+  \renewcommand{\numberline}[1]{\dr@original@numberline{##1.}}%
+  \dr@original@sectionline{#1}{#2}%
+  \endgroup
+}
+
+\titleformat{\subsubsection}
+  {\normalfont\bfseries\fontsize{11}{14}\selectfont\color{drink}}
+  {\thesubsubsection\hspace{0.5em}}{0pt}{}
+\titlespacing*{\subsubsection}{0pt}{13pt}{5pt}
+
+% Per-section figure and table numbering, e.g. Figure 5.2 / Table 5.1.
+\counterwithin{figure}{section}
+\counterwithin{table}{section}
+
+\captionsetup{
+  font={sf,footnotesize},
+  labelfont={bf,color=drred},
+  labelsep=period,
+  textfont={color=drink},
+  justification=raggedright,
+  singlelinecheck=false,
+  skip=7pt
+}
+
+\setlist[itemize]{leftmargin=1.35em,topsep=3pt,itemsep=2pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=1.6em,topsep=3pt,itemsep=2pt,parsep=0pt}
+
+% ------------------------------------------------------------------- cover --
+\newcommand{\makedrtitle}{%
+  \begingroup
+  \newgeometry{left=0.85in,right=0.85in,top=0.62in,bottom=0.62in}%
+  \thispagestyle{empty}%
+  \noindent
+  \dr@coverlogo
+  \hfill
+  \begin{minipage}[b]{2.45in}
+    \raggedleft
+    {\color{drmuted}\fontsize{8}{10}\selectfont\bfseries
+      INDIVIDUAL ASSIGNMENT\enspace/\enspace REPORT\par}
+  \end{minipage}
+
+  \vspace{0.18in}
+  \noindent
+  {\color{drred}\rule{1.18in}{3pt}}%
+  {\color{drline}\rule{\dimexpr\textwidth-1.18in\relax}{0.8pt}}
+
+  \vspace*{1.10in}
+  {\color{drred}\fontsize{10}{12}\selectfont\bfseries COURSE\par}
+  \vspace{0.10in}
+  {\color{drnavy}\fontsize{18}{22}\selectfont\dr@course\par}
+
+  \vspace{0.42in}
+  {\color{drred}\rule{0.70in}{3pt}\par}
+  \vspace{0.18in}
+  {\color{drnavy}\fontsize{38}{42}\selectfont\bfseries
+    \raggedright\dr@title\par}
+  \vspace{0.16in}
+  {\color{drink}\fontsize{20}{24}\selectfont
+    \raggedright\dr@subtitle\par}
+
+  \vfill
+  \begingroup
+  \setlength{\fboxsep}{18pt}%
+  \noindent
+  \colorbox{drpale}{%
+    \begin{minipage}{\dimexpr\textwidth-2\fboxsep\relax}
+      {\color{drred}\fontsize{9}{11}\selectfont\bfseries
+        SUBMISSION DETAILS\par}
+      \vspace{0.18in}
+      \begin{minipage}[t]{0.66\linewidth}
+        {\color{drmuted}\fontsize{8}{10}\selectfont\bfseries LECTURER\par}
+        \vspace{0.04in}
+        {\color{drink}\fontsize{12}{15}\selectfont\dr@lecturer\par}
+      \end{minipage}
+      \hfill
+      \begin{minipage}[t]{0.28\linewidth}
+        {\color{drmuted}\fontsize{8}{10}\selectfont\bfseries DATE\par}
+        \vspace{0.04in}
+        {\color{drink}\fontsize{12}{15}\selectfont\dr@date\par}
+      \end{minipage}
+
+      \vspace{0.18in}
+      {\color{drline}\rule{\linewidth}{0.8pt}\par}
+      \vspace{0.16in}
+      {\color{drred}\fontsize{9}{11}\selectfont\bfseries STUDENT DETAILS\par}
+      \vspace{0.12in}
+      \begingroup
+      \renewcommand{\dr@memberrow}[3]{%
+        {\color{drink}\fontsize{12}{15}\selectfont ##1}
+        & {\color{drink}\fontsize{12}{15}\selectfont ##2}\\}%
+      \begin{tabular}{@{}p{0.66\linewidth}p{0.28\linewidth}@{}}
+        {\color{drmuted}\fontsize{8}{10}\selectfont\bfseries STUDENT NAME}
+        & {\color{drmuted}\fontsize{8}{10}\selectfont\bfseries STUDENT ID}\\[0.05in]
+        \dr@members
+      \end{tabular}%
+      \endgroup
+    \end{minipage}%
+  }%
+  \endgroup
+  \vspace*{0.28in}
+  \restoregeometry
+  \endgroup
+  \clearpage
+}
+
+% ------------------------------------------------------------- declaration --
+% RMIT Declaration and Statement of Authorship, required on the first page of
+% the submission (see ../rubrics.md).
+\newcommand{\drdeclaration}{%
+  \section*{Declaration and Statement of Authorship}
+  \addcontentsline{toc}{section}{Declaration and Statement of Authorship}
+  \begin{enumerate}[leftmargin=1.7em]
+    \item I/we have not impersonated, or allowed myself to be impersonated by,
+      any person for the purposes of this assessment.
+    \item This assessment is my/our original work and no part of it has been
+      copied from any other source except where due acknowledgement is made.
+    \item No part of this assessment has been written for me/us by any other
+      person except where such collaboration has been authorised by the
+      lecturer/teacher concerned.
+    \item Where this work is being submitted for individual assessment, I
+      declare that it is my original work and that no part has been contributed
+      by, produced by or in conjunction with another student.
+    \item I/we give permission for my assessment response to be reproduced,
+      communicated, compared and archived for the purposes of detecting
+      plagiarism.
+    \item I/we give permission for a copy of my assessment to be retained by
+      the university for review and comparison, including review by external
+      examiners.
+    \item I/we understand that:
+      \begin{itemize}
+        \item Plagiarism is the presentation of the work, idea or creation of
+          another person as though it is your own. It is a form of cheating and
+          is a very serious academic offence that may lead to exclusion from the
+          University. Plagiarised material can be drawn from, and presented in,
+          written, graphic and visual form, including electronic data and oral
+          presentations. Plagiarism occurs when the origin of the material used
+          is not appropriately cited.
+        \item Plagiarism includes the act of assisting or allowing another
+          person to plagiarise or to copy my work.
+      \end{itemize}
+  \end{enumerate}
+
+  I/we agree and acknowledge that:
+
+  \begin{enumerate}[leftmargin=1.7em]
+    \item I/we have read and understood the Declaration and Statement of
+      Authorship above.
+    \item If I/we do not agree to the Declaration and Statement of Authorship in
+      this context and a signature is not included below, the assessment outcome
+      is not valid for assessment purposes and will not be included in my final
+      result for this course.
+  \end{enumerate}
+
+  \vspace{0.15in}
+  \begingroup
+  \renewcommand{\dr@memberrow}[3]{##1 & ##2 & \rule{0pt}{2.2em}\hrulefill\\}%
+  \begin{tabular}{@{}p{0.34\linewidth}p{0.18\linewidth}p{0.40\linewidth}@{}}
+    \toprule
+    \textbf{Name} & \textbf{Student ID} & \textbf{Signature}\\
+    \midrule
+    \dr@members
+    \bottomrule
+  \end{tabular}%
+  \endgroup
+  \clearpage
+}
+
+% --------------------------------------------------------- contents blocks --
+\newcommand{\drtoc}{%
+  \pagenumbering{roman}%
+  \tableofcontents
+  \clearpage
+}
+
+\newcommand{\drlistoffigures}{%
+  \listoffigures
+  \addcontentsline{toc}{section}{List of Figures}
+  \clearpage
+}
+
+\newcommand{\drlistoftables}{%
+  \listoftables
+  \addcontentsline{toc}{section}{List of Tables}
+  \clearpage
+}
+
+\newcommand{\drmainmatter}{%
+  \clearpage
+  \pagenumbering{arabic}%
+  \setcounter{page}{1}%
+}
+
+% ------------------------------------------------------- figures and stubs --
+% Real figure: \drfigure[width]{file}{caption}{label}
+\NewDocumentCommand{\drfigure}{O{0.97\linewidth} m m m}{%
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=#1,height=0.68\textheight,keepaspectratio]{#2}
+    \caption{#3}
+    \label{#4}
+  \end{figure}%
+}
+
+% Placeholder that still produces a numbered, captioned, referenceable figure,
+% so cross-references work before the artwork is drawn. Swap for \drfigure.
+\NewDocumentCommand{\drfigurestub}{O{2.0in} m m}{%
+  \begin{figure}[H]
+    \centering
+    \begingroup
+    \setlength{\fboxsep}{12pt}%
+    \fcolorbox{drline}{drpale}{%
+      \parbox[c][#1][c]{\dimexpr0.9\linewidth-2\fboxsep-2\fboxrule\relax}{%
+        \centering
+        {\color{drred}\fontsize{9}{11}\selectfont\bfseries
+          FIGURE PLACEHOLDER\par}
+        \vspace{0.10in}
+        {\color{drmuted}\fontsize{9.5}{12}\selectfont #2\par}
+      }%
+    }%
+    \endgroup
+    \caption{#2}
+    \label{#3}
+  \end{figure}%
+}
+
+% The brief asks for explanatory notes attached to diagrams. This renders one
+% as a tinted block so no figure ships without its explanation.
+% The argument is declared long (+m) so a note can run to more than one
+% paragraph; without it, a blank line or \par inside a note is an error.
+\NewDocumentCommand{\drnote}{+m}{%
+  \par\noindent
+  \begingroup
+  \setlength{\fboxsep}{10pt}%
+  \noindent
+  \colorbox{drpale}{%
+    \begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
+      {\color{drred}\fontsize{8}{10}\selectfont\bfseries NOTE\par}
+      \vspace{0.04in}
+      {\fontsize{9.5}{13}\selectfont #1\par}
+    \end{minipage}%
+  }%
+  \endgroup
+  \par\addvspace{8pt}
+}
+
+% Visible drafting marker. Search the PDF for "TODO" before submitting.
+\NewDocumentCommand{\drtodo}{m}{%
+  {\colorbox{drpaleamber}{\color{drred}\fontsize{9}{11}\selectfont\bfseries
+    TODO}\enspace\color{drmuted}\textit{#1}}%
+}
+
+% ------------------------------------------------------------- key/value id --
+% Short inline tag for a numbered design item, e.g. \drid{A7} or \drid{M03}.
+\NewDocumentCommand{\drid}{m}{%
+  {\ttfamily\bfseries\color{drnavy}#1}%
+}
+
+% ------------------------------------------------------------- long tables --
+% Column fractions below are fractions of \dr@tw, the width actually available
+% to text: \linewidth minus the inter-column gutters. Quoting them as fractions
+% of \linewidth (the obvious thing) overruns the text block by the total gutter
+% width and every row comes out overfull. Fractions in each table sum to 1.
+\newlength{\dr@tw}
+\newcommand{\dr@settw}[1]{%
+  \setlength{\tabcolsep}{4pt}%
+  \setlength{\dr@tw}{\dimexpr\linewidth-#1\tabcolsep\relax}%
+}
+
+% Assumptions register: \begin{drassumptions} ... rows ... \end{drassumptions}
+% Row: \drid{A1} & assumption & justification & what it drives \\
+% Each of the long tables below carries its own \caption. Without one, longtable
+% still steps the table counter, so the numbered table silently disappears from
+% the List of Tables and the numbering appears to skip.
+\newenvironment{drassumptions}{%
+  \footnotesize
+  \dr@settw{6}%
+  \begin{longtable}{@{}L{0.06\dr@tw}L{0.32\dr@tw}L{0.38\dr@tw}L{0.24\dr@tw}@{}}
+    \caption{Assumptions register: each assumption, its justification, and the
+      design element it determines}\\
+    \toprule
+    \textbf{ID} & \textbf{Assumption} & \textbf{Justification} &
+      \textbf{Drives}\\
+    \midrule
+    \endfirsthead
+    \toprule
+    \textbf{ID} & \textbf{Assumption} & \textbf{Justification} &
+      \textbf{Drives}\\
+    \midrule
+    \endhead
+    \bottomrule
+    \endlastfoot
+}{%
+  \end{longtable}\normalsize
+}
+
+% Message dictionary: one row per inter-task message.
+% Row: \drid{M01} & name & mechanism & from $\to$ to & payload & timing \\
+\newenvironment{drmessages}{%
+  \footnotesize
+  \dr@settw{10}%
+  \begin{longtable}{@{}L{0.06\dr@tw}L{0.20\dr@tw}L{0.15\dr@tw}L{0.17\dr@tw}L{0.26\dr@tw}L{0.16\dr@tw}@{}}
+    \caption{Message dictionary: every message exchanged between tasks}\\
+    \toprule
+    \textbf{ID} & \textbf{Message} & \textbf{Mechanism} & \textbf{From
+      $\rightarrow$ To} & \textbf{Payload} & \textbf{Timing}\\
+    \midrule
+    \endfirsthead
+    \toprule
+    \textbf{ID} & \textbf{Message} & \textbf{Mechanism} & \textbf{From
+      $\rightarrow$ To} & \textbf{Payload} & \textbf{Timing}\\
+    \midrule
+    \endhead
+    \bottomrule
+    \endlastfoot
+}{%
+  \end{longtable}\normalsize
+}
+
+% Task set for the schedulability analysis.
+% Row: \drid{T1} & task & node & prio & policy & T & C & D \\
+\newenvironment{drtaskset}{%
+  \footnotesize
+  \dr@settw{14}%
+  \begin{longtable}{@{}L{0.055\dr@tw}L{0.20\dr@tw}L{0.115\dr@tw}L{0.11\dr@tw}L{0.19\dr@tw}L{0.11\dr@tw}L{0.11\dr@tw}L{0.11\dr@tw}@{}}
+    \caption{Task set used for the schedulability analysis}\\
+    \toprule
+    \textbf{ID} & \textbf{Task} & \textbf{Node} & \textbf{Prio} &
+      \textbf{Policy} & \textbf{$T$ (ms)} & \textbf{$C$ (ms)} &
+      \textbf{$D$ (ms)}\\
+    \midrule
+    \endfirsthead
+    \toprule
+    \textbf{ID} & \textbf{Task} & \textbf{Node} & \textbf{Prio} &
+      \textbf{Policy} & \textbf{$T$ (ms)} & \textbf{$C$ (ms)} &
+      \textbf{$D$ (ms)}\\
+    \midrule
+    \endhead
+    \bottomrule
+    \endlastfoot
+}{%
+  \end{longtable}\normalsize
+}
+
+% Requirement -> design -> test traceability.
+% Row: \drid{R1} & requirement & design element & test case \\
+\newenvironment{drtrace}{%
+  \footnotesize
+  \dr@settw{6}%
+  \begin{longtable}{@{}L{0.065\dr@tw}L{0.39\dr@tw}L{0.325\dr@tw}L{0.22\dr@tw}@{}}
+    \caption{Traceability from requirement to design element to test}\\
+    \toprule
+    \textbf{ID} & \textbf{Requirement} & \textbf{Design element} &
+      \textbf{Test}\\
+    \midrule
+    \endfirsthead
+    \toprule
+    \textbf{ID} & \textbf{Requirement} & \textbf{Design element} &
+      \textbf{Test}\\
+    \midrule
+    \endhead
+    \bottomrule
+    \endlastfoot
+}{%
+  \end{longtable}\normalsize
+}
+
+% Generic full-width table body for anything else.
+\newenvironment{drtable}[1]{%
+  \footnotesize
+  \begin{tabularx}{\linewidth}{#1}
+    \toprule
+}{%
+    \bottomrule
+  \end{tabularx}\normalsize
+}
+
+% ---------------------------------------------------------------- listings --
+\lstdefinestyle{designreport}{%
+  basicstyle=\ttfamily\fontsize{9}{12}\selectfont,
+  backgroundcolor=\color{drcode},
+  rulecolor=\color{drred},
+  frame=l,
+  framerule=2.5pt,
+  framesep=9pt,
+  xleftmargin=2.7em,
+  xrightmargin=0pt,
+  framexleftmargin=1.8em,
+  numbers=left,
+  numberstyle=\tiny\color{drmuted},
+  numbersep=11pt,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4,
+  aboveskip=10pt,
+  belowskip=10pt,
+  keywordstyle=\color{drnavy}\bfseries,
+  commentstyle=\color{drmuted}\itshape,
+  morecomment=[l]{\#},
+  stringstyle=\color{drred}
+}
+\lstset{style=designreport}
+\lstdefinelanguage[MySQL]{SQL}{morecomment=[l]{\#}}
+
+\NewDocumentCommand{\drsourcefile}{O{C} m}{%
+  \lstinputlisting[language=#1]{#2}%
+}
+
+\makeatother
+
+\endinput

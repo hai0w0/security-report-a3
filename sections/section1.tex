@@ -1,0 +1,348 @@
+\section{Exploiting Web Services using SQL Injection \mbox{Attacks}}
+
+\drquestion{Q1.1}{Log in to Ted's account without a password}{%
+  In the above SQL statement, the variable \texttt{\$input\_uname} holds the
+  string typed in the Username textbox, and \texttt{\$hashed\_pwd} holds the
+  string typed in the Password textbox. User's inputs in these two textboxes
+  are placed directly in the SQL query string. There is a SQL-injection
+  vulnerability in the above SELECT query. Exploit the vulnerability and log
+  into Ted's account without knowing the correct password. Demonstrate that
+  your attack succeeds and explain your attack based on your exploited SQL.
+}
+
+The code snippet given in the assignment brief for this sub-question, taken
+from \texttt{unsafe\_home.php}, is:
+
+\begin{lstlisting}[language=PHP]
+$input_uname = $_GET['username'];
+$input_pwd = $_GET['Password'];
+$hashed_pwd = sha1($input_pwd);
+...
+$sql = "SELECT id, name, eid, salary, birth, ssn, address, email,
+nickname, Password
+FROM credential
+WHERE name= '$input_uname' and Password='$hashed_pwd'";
+$result = $conn -> query($sql);
+\end{lstlisting}
+
+\dranswer
+
+\paragraph{Vulnerability analysis.} Both values placed into \texttt{\$sql}
+originate from the client and are never validated. \texttt{\$input\_uname} is
+read unmodified from \texttt{\$\_GET['username']}, and \texttt{\$hashed\_pwd}
+is the SHA-1 digest of \texttt{\$\_GET['Password']}. Hashing the password does
+not protect this statement: SHA-1 only transforms the \emph{password} field
+into a fixed-length hexadecimal string, but the vulnerability lies in the
+neighbouring \texttt{name} column, where \texttt{\$input\_uname} is
+concatenated into the query completely unmodified. Whatever the password
+field contains, an attacker who controls the \texttt{username} field alone can
+still reshape the statement. Both variables are joined into the query by
+direct PHP string interpolation, with no parameterised query (an
+\texttt{mysqli} prepared statement with bound placeholders) and no input
+escaping (\texttt{mysqli\_real\_escape\_string()}) applied to either one:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+WHERE name= '$input_uname' and Password='$hashed_pwd'
+\end{lstlisting}
+
+The single quotes around each variable mark where the developer
+\emph{intends} the string literal to start and end, but they do nothing to
+stop the value itself from containing a quote character. Because the query is
+assembled as plain text before MySQL ever parses it, a quote inside
+\texttt{\$input\_uname} is indistinguishable from the quote the developer
+typed around the variable. This is the defining trait of a string-based SQL
+injection in an authentication check: user input is interpreted as part of
+the query's \emph{syntax} rather than as inert \emph{data}, so whoever
+controls the input can rewrite the logic of the query, including removing the
+password predicate entirely.
+
+\paragraph{Exploiting the vulnerability.} I submitted \texttt{Ted'\#} in the
+Username field and left the Password field blank, as shown in
+Figure~\ref{fig:q1-1-login-payload}. The browser transports the \texttt{\#}
+character in the request line as the percent-encoded sequence \texttt{\%23};
+the web server decodes this back to the literal \texttt{\#} before PHP ever
+reads \texttt{\$\_GET['username']}, so the value that reaches \texttt{\$sql}
+is the raw character, not the encoded form shown in the address bar.
+
+\drfigure{figures/q1-1-login-payload.PNG}{The injected username entered with the password field left blank.}{fig:q1-1-login-payload}
+
+With the Password field empty, \texttt{\$hashed\_pwd} is \texttt{sha1('')}.
+Substituting \texttt{Ted'\#} for \texttt{\$input\_uname} therefore produces
+the raw statement, in which \texttt{\$hashed\_pwd} appears as its computed
+SHA-1 digest:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+WHERE name = 'Ted'#' and Password='da39a3ee5e6b4b0d3255bfef95601890afd80709'
+\end{lstlisting}
+
+MySQL parses this left to right. \texttt{Ted} selects the intended account
+name. The apostrophe immediately after it is the one I injected: it closes
+the string literal that the developer opened with \texttt{name= '}, so the
+database compares \texttt{name} against the literal \texttt{Ted} only, not
+\texttt{Ted'\#}. Parsing then reaches the \texttt{\#} character. In MySQL,
+\texttt{\#} begins a single-line comment that extends to the end of the
+statement, so everything after it -- the stray closing quote left over from
+the original template, the literal \texttt{and Password=}, and the SHA-1 hash
+of the blank password field -- is discarded before execution instead of being
+treated as SQL. The effective condition MySQL actually evaluates is therefore
+reduced to:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+WHERE name = 'Ted'
+\end{lstlisting}
+
+This selects Ted's row by name alone; no password predicate participates in
+the query at all. In \texttt{unsafe\_home.php}, a non-empty \texttt{\$id} in
+the returned row is treated as a successful authentication: the script starts
+a session, stores Ted's identity in it, and calls \texttt{drawLayout()} to
+render his profile. Figure~\ref{fig:q1-1-ted-login} confirms this outcome:
+the application displays the Ted Profile page populated with Employee ID
+50000 and Salary 110000, the values recorded for Ted in
+\texttt{sqllab\_users.sql}, confirming that the returned row genuinely belongs
+to Ted rather than to a different or empty account.
+
+\drfigure{figures/q1-1-ted-profile.PNG}{Ted's profile displayed after the injected login request.}{fig:q1-1-ted-login}
+
+This demonstrates that the login succeeded without knowledge of Ted's correct
+password: the SHA-1 comparison that should have enforced it was never
+evaluated, because the injected comment removed it from the executed query
+before MySQL had a chance to check it.
+
+
+\drquestion{Q1.2}{Modify Boby's salary}{%
+  In above sub-question Q1.1, you have exploited the web application and
+  logged in as Ted. Exploiting the vulnerability in this UPDATE SQL statement
+  by using Ted's account to modify Boby's salary to SALARY\_1 without knowing
+  Ted's password and Boby's password. Demonstrate that your attack succeeds
+  and explain your attack based on your exploited SQL.
+}
+
+The code snippet given in the assignment brief for this sub-question, taken
+from \texttt{unsafe\_edit\_backend.php}, is:
+
+\begin{lstlisting}[language=PHP]
+$hashed_pwd = sha1($input_pwd);
+$sql = "UPDATE credential SET
+    nickname='$input_nickname',
+    email='$input_email',
+    address='$input_address',
+    Password='$hashed_pwd',
+    PhoneNumber='$input_phonenumber'
+WHERE ID=$id;";
+$conn->query($sql);
+\end{lstlisting}
+
+\dranswer
+
+\paragraph{Vulnerability analysis.} \texttt{\$id} is read from
+\texttt{\$\_SESSION['id']}, so an attacker cannot set it directly through a
+request parameter -- it is always the ID of whoever is currently logged in,
+Ted (\texttt{ID=5}) in this case. However, \texttt{NickName}, \texttt{Email},
+\texttt{Address}, \texttt{Password}, and \texttt{PhoneNumber} are all read
+unmodified from \texttt{\$\_GET} and concatenated into \texttt{\$sql} with no
+parameterised query and no escaping, exactly as in \texttt{unsafe\_home.php}.
+Because the single quotes around each of these fields only mark the
+developer's \emph{intended} string boundary, an attacker who breaks out of
+any one of them can append arbitrary SQL, including a brand-new
+\texttt{WHERE} clause, and comment away the original one. This means the
+attacker does not need to control \texttt{\$id} at all: redirecting the
+\texttt{WHERE} clause is enough to make the whole statement apply to any
+row, regardless of who is logged in.
+
+The full snippet above is only executed when the Password field is
+non-empty. The actual file wraps it in a condition:
+
+\begin{lstlisting}[language=PHP]
+if($input_pwd!=''){
+    $hashed_pwd = sha1($input_pwd);
+    $_SESSION['pwd']=$hashed_pwd;
+    $sql = "UPDATE credential SET nickname='$input_nickname',email='$input_email',address='$input_address',Password='$hashed_pwd',PhoneNumber='$input_phonenumber' where ID=$id;";
+}else{
+    $sql = "UPDATE credential SET nickname='$input_nickname',email='$input_email',address='$input_address',PhoneNumber='$input_phonenumber' where ID=$id;";
+}
+$conn->query($sql);
+\end{lstlisting}
+
+I left the Password field empty, so the executed statement is built by the
+\texttt{else} branch, which omits the \texttt{Password} assignment entirely.
+This branch is also never checked for success: \texttt{\$conn->query(\$sql)}
+is called and the script unconditionally redirects to
+\texttt{unsafe\_home.php} whether the query succeeded or failed, so the
+application itself gives no on-page indication of the outcome.
+
+\paragraph{Exploiting the vulnerability.} While logged in as Ted from Q1.1, I
+opened Edit Profile and entered the following value in the NickName field,
+leaving Email, Address, and Phone Number at their pre-filled (blank) values
+and Password empty, as shown in Figure~\ref{fig:q1-2-edit-payload}:
+
+\begin{lstlisting}
+', Salary=1605 WHERE ID=2 --
+\end{lstlisting}
+
+\drfigure{figures/q1-2-edit-payload.png}{The injected NickName payload entered on Ted's Edit Profile form.}{fig:q1-2-edit-payload}
+
+Substituting this into the \texttt{else} branch's \texttt{\$sql}, with
+Ted's session \texttt{\$id} equal to \texttt{5}, produces the raw statement:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+UPDATE credential SET nickname='', Salary=1605 WHERE ID=2 -- ',email='',address='',PhoneNumber='' where ID=5;
+\end{lstlisting}
+
+The leading apostrophe in the payload closes the \texttt{nickname='...'}
+literal immediately, giving \texttt{nickname=''} -- a harmless no-op, since
+Boby's NickName is already empty in the seed data. Everything after that
+quote is now parsed as SQL rather than string content: \texttt{, Salary=1605}
+adds a second column assignment, and \texttt{WHERE ID=2} supplies a brand new
+condition that targets Boby instead of Ted. The trailing \texttt{--}, followed
+by a space, then opens a MySQL end-of-line comment that discards everything
+after it -- the stray closing quote left over from the template, the
+remaining \texttt{email}/\texttt{address}/\texttt{PhoneNumber} assignments,
+and the real \texttt{where ID=5} clause that would otherwise have kept the
+update on Ted's own row. The effective statement MySQL actually executes is
+therefore reduced to:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+UPDATE credential SET nickname='', Salary=1605 WHERE ID=2
+\end{lstlisting}
+
+This updates Boby's row (\texttt{ID=2}) alone; Ted's row is never touched,
+because the real \texttt{where ID=5} clause was commented out before MySQL
+parsed it.
+
+Since \texttt{unsafe\_edit\_backend.php} gives no visible success or failure
+message, I verified the result out of band by logging out and logging back
+in as Boby using the same technique as Q1.1 (\texttt{Boby'\#} with the
+Password field left blank), which loads Boby's profile directly from his row
+in \texttt{credential}. Figure~\ref{fig:q1-2-boby-profile-salary} shows the
+result:
+
+\drfigure{figures/q1-2-boby-profile-salary.png}{Boby's profile after the attack, showing Salary updated to 1605.}{fig:q1-2-boby-profile-salary}
+
+Boby's Salary field now reads \texttt{1605}, matching SALARY\_1 for student
+s4041605. Employee ID (20000), Birth (4/20), and SSN (10213352) are unchanged
+from \texttt{sqllab\_users.sql}, confirming this is genuinely Boby's row, and
+NickName remains blank, consistent with the injected \texttt{nickname=''}
+assignment being a no-op. This demonstrates that Ted's authenticated session
+was used to modify a different user's row without knowing Ted's password
+(already bypassed in Q1.1) or Boby's password at any point.
+
+
+\drquestion{Q1.3}{Modify Boby's profile}{%
+  In above sub-question Q1.1, you have exploited the web application and
+  logged in as Ted. Exploiting the vulnerability in this UPDATE SQL statement
+  by using Ted's account to modify Boby's nickname to your student name, email
+  to your RMIT student email, and address to
+  \textquotedbl{}RMIT\textquotedbl{}, without knowing Ted's
+  password and Boby's password. Demonstrate that your attack succeeds and
+  explain your attack based on your exploited SQL.
+}
+
+\dranswer
+
+\paragraph{Vulnerability analysis.} This sub-question exploits the same
+\texttt{UPDATE} statement identified in Q1.2, again via the \texttt{else}
+branch of \texttt{unsafe\_edit\_backend.php} that runs when the Password
+field is left empty:
+
+\begin{lstlisting}[language=PHP]
+$sql = "UPDATE credential SET nickname='$input_nickname',email='$input_email',address='$input_address',PhoneNumber='$input_phonenumber' where ID=$id;";
+\end{lstlisting}
+
+In Q1.2 I broke out of the \emph{first} field (\texttt{NickName}) and
+commented away everything after it, so the earlier, genuine-looking
+\texttt{email}/\texttt{address}/\texttt{PhoneNumber} values were never
+applied to any row -- only the injected \texttt{Salary} assignment mattered.
+For this sub-question I need three fields (\texttt{NickName}, \texttt{Email},
+\texttt{Address}) to actually take effect on Boby's row, so injecting through
+the first field will not work: anything before the injection point is
+discarded by the comment, and anything after it never executes on the
+intended row. Instead, I inject through the \emph{last} field,
+\texttt{PhoneNumber}, immediately before the real \texttt{WHERE} clause. A
+single \texttt{UPDATE} statement has exactly one \texttt{WHERE} clause
+governing every \texttt{SET} assignment in it, so replacing that clause at
+the last possible point makes \emph{all} of the preceding assignments --
+including the legitimate-looking NickName, Email, and Address values -- apply
+to whichever row the injected clause names, rather than to Ted's own row.
+
+\paragraph{Exploiting the vulnerability.} While logged in as Ted, I opened
+Edit Profile and entered the following values, leaving Password empty so the
+\texttt{else} branch above is used, as shown in
+Figure~\ref{fig:q1-3-edit-payload}:
+
+\begin{itemize}
+  \item NickName: \texttt{Tran Dinh Hai}
+  \item Email: \texttt{s4041605@rmit.edu.vn}
+  \item Address: \texttt{RMIT}
+  \item Phone Number: \texttt{' WHERE ID=2\#}
+\end{itemize}
+
+\drfigure{figures/q1-3-edit-payload.png}{The injected values entered on Ted's Edit Profile form, with the payload in Phone Number.}{fig:q1-3-edit-payload}
+
+Substituting these into \texttt{\$sql}, with Ted's session \texttt{\$id}
+equal to \texttt{5}, produces the raw statement:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+UPDATE credential SET nickname='Tran Dinh Hai',email='s4041605@rmit.edu.vn',address='RMIT',PhoneNumber='' WHERE ID=2#' where ID=5;
+\end{lstlisting}
+
+The apostrophe in the Phone Number payload closes \texttt{PhoneNumber='...'}
+immediately, giving \texttt{PhoneNumber=''} -- a no-op, since Boby's Phone
+Number is already blank in the seed data. \texttt{WHERE ID=2} then supplies
+a brand-new condition for the statement, and \texttt{\#} opens a MySQL
+comment that discards everything after it: the stray closing quote left over
+from the template and the real \texttt{where ID=5} clause. Because this
+substitution replaces the statement's only \texttt{WHERE} clause rather than
+being commented out itself, every assignment before it -- \texttt{nickname},
+\texttt{email}, and \texttt{address} -- is retained and now applies to
+\texttt{ID=2}. The effective statement MySQL actually executes is:
+
+\begin{lstlisting}[language={[MySQL]SQL}]
+UPDATE credential SET nickname='Tran Dinh Hai',email='s4041605@rmit.edu.vn',address='RMIT',PhoneNumber='' WHERE ID=2
+\end{lstlisting}
+
+I verified the result the same way as Q1.2: logging out and back in as Boby
+(\texttt{Boby'\#}, Password blank). Figure~\ref{fig:q1-3-boby-profile-updated}
+shows the result:
+
+\drfigure{figures/q1-3-boby-profile-updated.png}{Boby's profile after the attack, showing the updated NickName, Email, and Address.}{fig:q1-3-boby-profile-updated}
+
+Boby's profile now shows NickName \texttt{Tran Dinh Hai}, Email
+\texttt{s4041605@rmit.edu.vn}, and Address \texttt{RMIT}, exactly as
+submitted. Phone Number remains blank, consistent with the injected
+\texttt{PhoneNumber=''} assignment being a no-op. Salary still reads
+\texttt{1605} from Q1.2, and Employee ID (20000), Birth (4/20), and SSN
+(10213352) remain unchanged, confirming this is still genuinely Boby's row.
+This demonstrates that Ted's authenticated session was again used to modify
+Boby's row -- this time three fields at once -- without knowing Ted's
+password or Boby's password at any point.
+
+\drquestion{Q1.4}{Identify the vulnerable task queries}{%
+  In the above two web pages, you need to identify the vulnerable SQL queries
+  that are exploitable to allow the attacker to conduct the above attack:
+  \textquotedbl{}display all the tasks of the user who has the maximum number
+  of tasks when you view your tasks\textquotedbl. Show the identifies
+  vulnerabilities and explain why they are exploitable to allow for the
+  attack.
+}
+
+\dranswer
+
+\drtodo{Identify the vulnerable queries in \path{unsafe_view_order.php} and \path{unsafe_tasks_view.php}, trace attacker-controlled data into them, and add genuine source evidence.}
+
+\drfigurestub{Vulnerable task queries identified for Q1.4.}{fig:q1-4-vulnerable-queries}
+
+
+\drquestion{Q1.5}{Display the maximum-task user's tasks}{%
+  You need to exploit the identifies vulnerable SQL queries in above Q1.5 to
+  conduct the attack: \textquotedbl{}display all the tasks of the user who has
+  the maximum number of tasks when you view your tasks\textquotedbl.
+  Demonstrate that your attack succeeds and explain your attack based on your
+  exploited SQL.
+}
+
+\dranswer
+
+% The Q1.5 self-reference above is reproduced from the official brief.
+\drtodo{Record the exact injected input and resulting SQL statements. Add genuine evidence identifying the user returned by \texttt{userIdMaxTasks()} and showing that the View Tasks page displays that user's tasks, then explain the complete data flow.}
+
+\drfigurestub{Successful display of the maximum-task user's tasks for Q1.5.}{fig:q1-5-maximum-tasks}

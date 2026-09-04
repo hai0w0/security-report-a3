@@ -1,0 +1,78 @@
+\documentclass[11pt]{article}
+
+% Local copy of the Assignment 2 design package, making this project standalone.
+\usepackage{intellectus-designreport}
+\usepackage{eso-pic}
+\setlength{\emergencystretch}{4em}
+
+% Assignment metadata. Update these fields if the Assignment 3 brief differs.
+\drcourse{INTE2547-2580 Security Testing}
+\drtitle{Security Testing}
+\drsubtitle{Assignment 3 Report}
+\drlecturer{Dr. Sreenivas Tirumala}
+\drgroup{Individual assignment}
+\drdate{\today}
+\renewcommand{\contentsname}{Table of Contents}
+
+% Student details.
+\drmember{Tran Dinh Hai}{s4041605}{Security testing, analysis, and report writing}
+
+% Preserve the geometric Assignment 2 cover while replacing its baked-in
+% assignment number non-destructively. The source image remains unchanged.
+\definecolor{drcoverorange}{HTML}{FF5C20}
+\IfFontExistsTF{Arial Narrow}{
+  \newfontfamily\drcoverassignmentfont{Arial Narrow}
+}{
+  \newcommand{\drcoverassignmentfont}{\sffamily}
+}
+\renewcommand{\makedrtitle}{%
+  \thispagestyle{empty}%
+  \AddToShipoutPictureBG*{%
+    \AtPageLowerLeft{%
+      \put(0,0){\includegraphics[width=\paperwidth,height=\paperheight]{figures/Report Cover Page.jpg}}%
+      \put(46,425){\color{white}\rule{365pt}{95pt}}%
+      \put(48,457){%
+        \makebox(0,0)[bl]{%
+          \drcoverassignmentfont\color{drcoverorange}%
+          \fontsize{41}{44}\selectfont ASSIGNMENT 3%
+        }%
+      }%
+    }%
+  }%
+  \null
+  \clearpage
+}
+
+% Reusable Assignment 3 question and answer commands.
+\input{template-commands}
+
+\hypersetup{
+  pdftitle={Security Testing - Assignment 3 Report},
+  pdfauthor={Tran Dinh Hai},
+  pdfsubject={Security technical report}
+}
+
+\begin{document}
+
+% The geometric cover above is unnumbered.
+\makedrtitle
+\pagenumbering{arabic}
+\begingroup
+\fontsize{11.5}{15}\selectfont
+\setlength{\parskip}{1.5pt}
+\tableofcontents
+\endgroup
+\clearpage
+
+\input{sections/section1}
+% Add further modular sections as the Assignment 3 brief requires:
+% \input{sections/section2}
+% \input{sections/section3}
+
+\appendix
+\clearpage
+\section*{Appendix}
+\addcontentsline{toc}{section}{Appendix}
+\input{sections/appendix}
+
+\end{document}

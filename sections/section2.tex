@@ -1,0 +1,107 @@
+\section{Exploiting Web Services using Cross-Site Scripting Attacks}
+
+\drquestion{Q2.1}{Display the student-number XSS alert}{%
+  You need to embed a JavaScript program in the \textquotedbl{}About
+  me\textquotedbl{} field of Samy's profile, such that when another user
+  (e.g., Alice) views Samy's profile, the JavaScript program will be executed
+  and an alert window will be displayed with message \textquotedbl{}Attack with
+  XSS by \textquotedbl{}+your student no.. For example, if your student no. is
+  s3123456, then the message is \textquotedbl{}Attack with XSS by
+  s3123456\textquotedbl. Demonstrate that your attack succeeds and explain
+  your attack based on your injected scripts.
+}
+
+\dranswer
+
+\drtodo{Record the exact JavaScript embedded in Samy's About me field, using student number s4041605. Add genuine evidence of the saved payload and an alert reading \textquotedbl Attack with XSS by s4041605\textquotedbl{} when another user views Samy's profile, then explain when and why the script executes.}
+
+\drfigurestub{XSS alert displayed from Samy's profile for Q2.1.}{fig:q2-1-xss-alert}
+
+
+\drquestion{Q2.2}{Display the viewer's cookies}{%
+  You need to embed a JavaScript program in the \textquotedbl{}About
+  me\textquotedbl{} field of Samy's profile, such that when another user
+  (e.g., Alice) views Samy's profile, the user's cookies will be displayed in
+  the alert window. Demonstrate that your attack succeeds and explain your
+  attack based on your injected scripts.
+}
+
+\dranswer
+
+\drtodo{Record the exact JavaScript embedded in Samy's About me field. Add genuine evidence showing the viewing user's cookies in the alert, and explain how the script accesses the victim browser's cookie data. Check the screenshot for unrelated sensitive data before including it.}
+
+\drfigurestub{Viewing user's cookies displayed by the Q2.2 payload.}{fig:q2-2-cookie-alert}
+
+
+\drquestion{Q2.3}{Construct the profile-modification request}{%
+  You need to modify the victim's (e.g., Alice) profile when the victim visits
+  Samy's page. We will write an XSS worm to complete the task.
+  We need to write a malicious JavaScript program that forges HTTP requests
+  directly from the victim's browser, without the intervention of the
+  attacker. To modify profile, we should first find out how a legitimate user
+  edits or modifies his/her profile in Elgg. More specifically, we need to
+  figure out how the HTTP POST request is constructed to modify a user's
+  profile. Afterwards, we can write a JavaScript program to send out the same
+  HTTP request. We provide a skeleton JavaScript code that aids in completing
+  the task.
+  There are three \textquotedbl FILL-IN\textquotedbl{} fields. The description
+  field should be your RMIT student no. For the rests, you need to figure out
+  the values to those fields by using Firefox's HTTP inspection tool to view
+  the HTTP POST request when modifying Samy's profile. Demonstrate your answer
+  and how you find out the answer.
+}
+
+% The official skeleton follows. String delimiters use equivalent single
+% quotes here so the code remains robust inside the report source.
+\begin{lstlisting}
+<script type='text/javascript'>
+window.onload=function(){
+    //JavaScript code to access user name, user guid, Time Stamp
+    //__elgg_ts and Security Token __elgg_token
+    var userName=elgg.session.user.name;
+    var guid='&guid='+elgg.session.user.guid;
+    var ts='&__elgg_ts='+elgg.security.token.__elgg_ts;
+    var token='&__elgg_token='+elgg.security.token.__elgg_token;
+    var desc='&description= *** '; //FILL-IN
+    var name='&name='+userName;
+    //Construct the content of your url.
+    var sendurl='***'; //FILL-IN
+    var content=token+ts+name+desc+guid;
+    var samyGuid=***;     //FILL-IN
+    if(elgg.session.user.guid!=samyGuid) {
+          //Create and send Ajax request to modify profile
+          var Ajax=null;
+          Ajax=new XMLHttpRequest();
+          Ajax.open('POST',sendurl,true)
+          Ajax.setRequestHeader('Host','www.seed-server.com');
+          Ajax.setRequestHeader('Content-Type',
+                                'application/x-www-form-urlencoded');
+          Ajax.send(content);
+    }
+}
+</script>
+\end{lstlisting}
+
+\dranswer
+
+\drtodo{Use Firefox's HTTP inspection evidence from a legitimate Samy profile edit to determine the description value, profile-edit endpoint, and Samy GUID. Include the captured POST request, the completed script, and an explanation of the dynamic timestamp, token, user name, and victim GUID fields. Do not guess any observed request value.}
+
+\drfigurestub{Firefox HTTP inspection evidence for the legitimate profile-update request in Q2.3.}{fig:q2-3-http-request}
+
+
+\drquestion{Q2.4}{Execute the profile-modification XSS worm}{%
+  In the above sub-question Q2.3, you already construct the XSS worm.
+  Afterwards, you need to embed a JavaScript program in the
+  \textquotedbl{}About me\textquotedbl{} field of Samy's profile, such that
+  when another user
+  (e.g., Alice) views Samy's profile, the above script will be executed and the
+  description (i.e., your student no.) will be injected into Alice's profile
+  automatically. Demonstrate that your attack succeeds and explain your attack
+  based on your screenshots.
+}
+
+\dranswer
+
+\drtodo{Include the verified completed worm and genuine screenshots showing it stored in Samy's profile, Alice visiting Samy's page, and Alice's description changed automatically to s4041605. Explain the screenshots and the forged request without claiming unobserved output.}
+
+\drfigurestub{Alice's profile description automatically changed to s4041605 for Q2.4.}{fig:q2-4-alice-profile}
