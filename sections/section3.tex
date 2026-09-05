@@ -1,21 +1,31 @@
 \section{Analyzing the Security of AI Systems}
 
-\drquestion{Q3.1}{Report the adversarial-attack observations}{%
+\drquestion{Q3.1}{Adversarial Evasion Attack Demonstration}{%
   Provide screenshots to report your observations.
 }
 
 \dranswer
 
-\drtodo{Using the specified MNIST model, select \textquotedbl Jacobian-based Saliency map attack (stronger)\textquotedbl, start with the image of 3, and set \textquotedbl Turn this image into a\textquotedbl{} to 8. Add genuine screenshots that clearly show the original prediction, selected method and target, generated adversarial image, and resulting prediction. Describe only what the screenshots demonstrate.}
+Using adversarial.js's MNIST (digit recognition) model, I selected the source image showing the digit \texttt{3}, set \textquotedbl{}Turn this image into a\textquotedbl{} to \texttt{8}, chose the \textquotedbl{}Jacobian-based Saliency (stronger)\textquotedbl{} attack, and generated the adversarial example. Figure~\ref{fig:q3-1-adversarial-result} shows the full result.
 
-\drfigurestub{MNIST Jacobian-based Saliency map attack from 3 to 8 for Q3.1.}{fig:q3-1-adversarial-result}
+The Original Image panel shows the unmodified digit fed to the network: Prediction \texttt{"3"} at Probability \texttt{96.09\%}, marked \textquotedbl{}Prediction is correct.\textquotedbl{} The Adversarial Image panel shows the output of the attack: the same digit shape, but with a sparse scattering of extra white pixels added near the image's edges and corners that are not present in the original. Feeding this perturbed image to the identical network produced Prediction \texttt{"8"} at Probability \texttt{99.86\%}, with the tool itself reporting \textquotedbl{}Prediction is wrong. Attack succeeded!\textquotedbl{}
 
+\drfigure{figures/q3-1-adversarial-result.png}{The MNIST model's original prediction on the digit 3, and its prediction on the Jacobian-based Saliency (stronger) adversarial example targeting 8.}{fig:q3-1-adversarial-result}
 
-\drquestion{Q3.2}{Analyze why the evasion attack succeeds}{%
-  Analyze the reasons (e.g., image similarity) for this successful evasion
-  attack (hints: refer to the attack patterns in Page 19 of Week 6 lecture).
+The two images are visually near-identical to a human observer -- the digit's overall loops and strokes are unchanged, and the added pixels are few and confined to the background rather than the digit itself -- yet the network's output flipped from \texttt{3} to \texttt{8} with higher confidence than its original, correct prediction. This demonstrates a successful evasion attack: a small, targeted perturbation caused a confident misclassification without altering what the image depicts to a human viewer.
+
+\drquestion{Q3.2}{Evasion Attack Mechanism Analysis}{%
+  Analyze the reasons for this successful evasion attack, such as image similarity, referring to the attack patterns on page 19 of the Week 6 lecture.
 }
 
 \dranswer
 
-\drtodo{Provide Page 19 of the Week 6 lecture or verified notes from it. Analyze the successful Q3.1 result using the observed perturbation and image similarity, connect the explanation to the lecture's attack patterns, and distinguish visible observations from model-level inference.}
+The attack succeeded because it changed very little of the image, and it did not choose that little to change at random. Comparing the two panels of Figure~\ref{fig:q3-1-adversarial-result}, the digit's own strokes are untouched; the only visible difference is a handful of extra white pixels scattered in the background near the edges and corners. The two images are, to a human viewer, the same digit \texttt{3} with a light speckle of noise, which is why the attack is called an evasion attack rather than a change to the underlying content: the input still depicts a 3, but the network's output changed anyway.
+
+Page 19 of the Week 6 lecture, \textquotedbl{}Typical Attacks: Evasion Attacks -- 4b\textquotedbl{} (Figure~\ref{fig:q3-2-slide19}), illustrates why a perturbation this small is enough. Its left-hand \textbf{Gradient-based methods} panel (GradArgmax) shows an evasion attack proceeding in explicit steps: at Step 1, the attacker computes the gradient of the model's output on the clean input, reads off which single component has the largest gradient value (highlighted in red, value \texttt{10} in the slide's example), and perturbs only that one component, producing \texttt{G + \(\Delta\)G\(_1\)}. At Step 2, the gradient is recomputed on this new, already-perturbed input, a new highest-value component is identified, and that one is perturbed next. Each step targets whichever single input component the model's own gradient says will move its output furthest toward the attacker's goal, rather than perturbing the input broadly or uniformly.
+
+\drfigure{figures/q3-2-week6-slide19-gradient-methods.png}{Week 6 lecture, page 19: \textquotedbl{}Typical Attacks: Evasion Attacks -- 4b\textquotedbl, showing the gradient-based (GradArgmax) and RL-based (RL-S2V) evasion-attack methods for graph neural networks.}{fig:q3-2-slide19}
+
+The Jacobian-based Saliency Map Attack used in Q3.1 follows the same pattern, applied to image pixels instead of graph edges: it computes the Jacobian of the network's output with respect to every input pixel, which is a matrix of exactly the per-pixel gradients the slide's method reads one value from, ranks pixels by how much increasing them would raise the target class's score, modifies the highest-ranked pixel or pixels by the maximum allowed amount, and repeats with a freshly computed Jacobian on the updated image, exactly as the slide's Step 1 / Step 2 process recomputes its gradient after each perturbation. Because both methods select their perturbation from the model's own local gradient information rather than from the input's visual content, the resulting change is concentrated on whichever few pixels the network's decision boundary is most sensitive to, which is generally a small subset of all the pixels in the image. This is also why the perturbation lands in the background rather than redrawing the digit itself: those background pixels are the ones the trained network's gradient identifies as most influential for the digit-8 output, not the pixels a human would associate with the number 3.
+
+This explains the observed result without needing to inspect the model's internals directly: the high visual similarity between the original and adversarial images in Figure~\ref{fig:q3-1-adversarial-result} is the direct, observed consequence of the attack modifying only the few pixels its gradient computation ranked highest, and the confident misclassification (\texttt{99.86\%} for \texttt{8}) is the intended outcome of an iterative, gradient-guided search of exactly the kind Page 19 illustrates for a different model type. The lecture's case study is on graph neural networks rather than image classifiers, so the specific inputs being perturbed differ, but the underlying attack pattern -- use the model's own gradient to find the input's most sensitive components, perturb only those, and repeat -- is the same mechanism in both cases, and it is what makes a visually minor change sufficient to flip the network's prediction.

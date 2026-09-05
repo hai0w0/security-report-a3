@@ -1,13 +1,7 @@
 \section{Exploiting Web Services using SQL Injection \mbox{Attacks}}
 
-\drquestion{Q1.1}{Log in to Ted's account without a password}{%
-  In the above SQL statement, the variable \texttt{\$input\_uname} holds the
-  string typed in the Username textbox, and \texttt{\$hashed\_pwd} holds the
-  string typed in the Password textbox. User's inputs in these two textboxes
-  are placed directly in the SQL query string. There is a SQL-injection
-  vulnerability in the above SELECT query. Exploit the vulnerability and log
-  into Ted's account without knowing the correct password. Demonstrate that
-  your attack succeeds and explain your attack based on your exploited SQL.
+\drquestion{Q1.1}{Authentication Bypass via SQL Injection}{%
+  Exploit the SQL injection vulnerability in the above authentication query to log in to Ted's account without knowing his password, and explain your attack based on your exploited SQL.
 }
 
 The code snippet given in the assignment brief for this sub-question, taken
@@ -27,7 +21,7 @@ $result = $conn -> query($sql);
 
 \dranswer
 
-\paragraph{Vulnerability analysis.} Both values placed into \texttt{\$sql}
+\paragraph{Vulnerability analysis:} Both values placed into \texttt{\$sql}
 originate from the client and are never validated. \texttt{\$input\_uname} is
 read unmodified from \texttt{\$\_GET['username']}, and \texttt{\$hashed\_pwd}
 is the SHA-1 digest of \texttt{\$\_GET['Password']}. Hashing the password does
@@ -56,7 +50,7 @@ the query's \emph{syntax} rather than as inert \emph{data}, so whoever
 controls the input can rewrite the logic of the query, including removing the
 password predicate entirely.
 
-\paragraph{Exploiting the vulnerability.} I submitted \texttt{Ted'\#} in the
+\paragraph{Exploiting the vulnerability:} I submitted \texttt{Ted'\#} in the
 Username field and left the Password field blank, as shown in
 Figure~\ref{fig:q1-1-login-payload}. The browser transports the \texttt{\#}
 character in the request line as the percent-encoded sequence \texttt{\%23};
@@ -108,13 +102,8 @@ password: the SHA-1 comparison that should have enforced it was never
 evaluated, because the injected comment removed it from the executed query
 before MySQL had a chance to check it.
 
-
-\drquestion{Q1.2}{Modify Boby's salary}{%
-  In above sub-question Q1.1, you have exploited the web application and
-  logged in as Ted. Exploiting the vulnerability in this UPDATE SQL statement
-  by using Ted's account to modify Boby's salary to SALARY\_1 without knowing
-  Ted's password and Boby's password. Demonstrate that your attack succeeds
-  and explain your attack based on your exploited SQL.
+\drquestion{Q1.2}{Unauthorized Salary Modification via SQL Injection}{%
+  Using Ted's session from Q1.1, exploit the same UPDATE statement's SQL injection vulnerability to change Boby's salary to SALARY\_1 without knowing either user's password.
 }
 
 The code snippet given in the assignment brief for this sub-question, taken
@@ -134,7 +123,7 @@ $conn->query($sql);
 
 \dranswer
 
-\paragraph{Vulnerability analysis.} \texttt{\$id} is read from
+\paragraph{Vulnerability analysis:} \texttt{\$id} is read from
 \texttt{\$\_SESSION['id']}, so an attacker cannot set it directly through a
 request parameter -- it is always the ID of whoever is currently logged in,
 Ted (\texttt{ID=5}) in this case. However, \texttt{NickName}, \texttt{Email},
@@ -170,7 +159,7 @@ is called and the script unconditionally redirects to
 \texttt{unsafe\_home.php} whether the query succeeded or failed, so the
 application itself gives no on-page indication of the outcome.
 
-\paragraph{Exploiting the vulnerability.} While logged in as Ted from Q1.1, I
+\paragraph{Exploiting the vulnerability:} While logged in as Ted from Q1.1, I
 opened Edit Profile and entered the following value in the NickName field,
 leaving Email, Address, and Phone Number at their pre-filled (blank) values
 and Password empty, as shown in Figure~\ref{fig:q1-2-edit-payload}:
@@ -226,20 +215,13 @@ assignment being a no-op. This demonstrates that Ted's authenticated session
 was used to modify a different user's row without knowing Ted's password
 (already bypassed in Q1.1) or Boby's password at any point.
 
-
-\drquestion{Q1.3}{Modify Boby's profile}{%
-  In above sub-question Q1.1, you have exploited the web application and
-  logged in as Ted. Exploiting the vulnerability in this UPDATE SQL statement
-  by using Ted's account to modify Boby's nickname to your student name, email
-  to your RMIT student email, and address to
-  \textquotedbl{}RMIT\textquotedbl{}, without knowing Ted's
-  password and Boby's password. Demonstrate that your attack succeeds and
-  explain your attack based on your exploited SQL.
+\drquestion{Q1.3}{Unauthorized Profile Modification via SQL Injection}{%
+  Using Ted's session from Q1.1, exploit the same UPDATE statement's SQL injection vulnerability to change Boby's nickname, email, and address to the specified values without knowing either user's password.
 }
 
 \dranswer
 
-\paragraph{Vulnerability analysis.} This sub-question exploits the same
+\paragraph{Vulnerability analysis:} This sub-question exploits the same
 \texttt{UPDATE} statement identified in Q1.2, again via the \texttt{else}
 branch of \texttt{unsafe\_edit\_backend.php} that runs when the Password
 field is left empty:
@@ -264,7 +246,7 @@ the last possible point makes \emph{all} of the preceding assignments --
 including the legitimate-looking NickName, Email, and Address values -- apply
 to whichever row the injected clause names, rather than to Ted's own row.
 
-\paragraph{Exploiting the vulnerability.} While logged in as Ted, I opened
+\paragraph{Exploiting the vulnerability:} While logged in as Ted, I opened
 Edit Profile and entered the following values, leaving Password empty so the
 \texttt{else} branch above is used, as shown in
 Figure~\ref{fig:q1-3-edit-payload}:
@@ -316,14 +298,15 @@ This demonstrates that Ted's authenticated session was again used to modify
 Boby's row -- this time three fields at once -- without knowing Ted's
 password or Boby's password at any point.
 
-\drquestion{Q1.4}{Identify the vulnerable task queries}{%
-  In the above two web pages, you need to identify the vulnerable SQL queries
-  that are exploitable to allow the attacker to conduct the above attack:
-  \textquotedbl{}display all the tasks of the user who has the maximum number
-  of tasks when you view your tasks\textquotedbl. Show the identifies
-  vulnerabilities and explain why they are exploitable to allow for the
-  attack.
+\drquestion{Q1.4}{Identification of the Stacked-Query Injection Vulnerability}{%
+  Identify and explain the vulnerable SQL queries in the two given web pages to display the tasks of the user with the most declared tasks.
 }
+
+The two figures below are given by the assignment brief, consisting of vulnerabilities: the Set View Preference page (Figure~\ref{fig:brief-figure2}) and the View Tasks page (Figure~\ref{fig:brief-figure3}).
+
+\drfigure[0.6\linewidth]{figures/figure 2.PNG}{Assignment brief, Figure 2: the Set View Preference page (\texttt{unsafe\_view\_order.php}).}{fig:brief-figure2}
+
+\drfigure[0.6\linewidth]{figures/figure 3.PNG}{Assignment brief, Figure 3: the View Tasks page (\texttt{unsafe\_tasks\_view.php}).}{fig:brief-figure3}
 
 \dranswer
 
@@ -332,6 +315,8 @@ lets an attacker store arbitrary text unchecked, and one that later reads
 that text back and executes it as part of a new query.
 
 \paragraph{Vulnerable query 1: writing the sort preference (\texttt{unsafe\_view\_order.php}).}
+
+In the \texttt{unsafe\_view\_order.php} snippet below, taken from the lab's Docker image at \texttt{image\_www/Code/}, we can see how the sort preference submitted from Figure~\ref{fig:brief-figure2} is written to the database:
 
 \begin{lstlisting}[language=PHP,aboveskip=0pt]
 $newfavourite = $_POST["favourite"] . " ";
@@ -359,6 +344,8 @@ its more significant role here is that it lets an attacker persist
 \emph{any} string, unchecked, for later use.
 
 \paragraph{Vulnerable query 2: reading and ordering tasks (\texttt{unsafe\_tasks\_view.php}).}
+
+In the \texttt{unsafe\_tasks\_view.php} snippet below, also taken from \texttt{image\_www/Code/}, we can see how that stored value is read back and used to build the View Tasks query shown in Figure~\ref{fig:brief-figure3}:
 
 \vspace{-18pt}
 \begin{lstlisting}[language=PHP,aboveskip=0pt]
@@ -397,7 +384,7 @@ mechanism built into the application: if \texttt{favourite} contains a
 \texttt{;} followed by a second complete SQL statement, that second
 statement is executed exactly as if the attacker had submitted it directly.
 
-\paragraph{Why this is exploitable: the complete data flow.} An
+\paragraph{Why this is exploitable: the complete data flow:} An
 authenticated user (an attacker needs no special privilege beyond a normal
 session) submits the Set View Preference form with crafted
 \texttt{favourite}/\texttt{order} values instead of the intended dropdown
@@ -418,18 +405,13 @@ payload is later parsed apart and executed (no output validation on read,
 plus explicit multi-statement execution). Neither vulnerability alone
 completes the attack -- Q1.5 exploits both together.
 
-
-\drquestion{Q1.5}{Display the maximum-task user's tasks}{%
-  You need to exploit the identifies vulnerable SQL queries in above Q1.5 to
-  conduct the attack: \textquotedbl{}display all the tasks of the user who has
-  the maximum number of tasks when you view your tasks\textquotedbl.
-  Demonstrate that your attack succeeds and explain your attack based on your
-  exploited SQL.
+\drquestion{Q1.5}{Cross-User Data Disclosure via Stacked-Query Injection}{%
+  Exploit the vulnerabilities identified in Q1.4 to make View Tasks display the tasks of the user with the most declared tasks.
 }
 
 \dranswer
 
-\paragraph{Step 1: submit the payload.} This attack needs both vulnerable
+\paragraph{Step 1: submit the payload:} This attack needs both vulnerable
 statements from Q1.4 to work together. Query~1 is where I plant the
 malicious text; Query~2 is where that text later gets executed. While logged
 in as Ted, I opened Set View Preference and filled in the form as shown in
@@ -456,7 +438,7 @@ complete second SQL statement, is typed straight into the free-text
 submits it as an ordinary POST request, so no proxy or browser console was
 needed to send it.
 
-\paragraph{Step 2: how the payload is stored.} Query~1 combines the two
+\paragraph{Step 2: how the payload is stored:} Query~1 combines the two
 submitted fields into one string:
 
 \begin{lstlisting}
@@ -477,7 +459,7 @@ Ted already had a row in \texttt{preference}, so this string is written into
 it unchanged by Query~1's \texttt{UPDATE} branch, with no check on its
 content.
 
-\paragraph{Step 3: how the payload is executed.} When View Tasks next loads
+\paragraph{Step 3: how the payload is executed:} When View Tasks next loads
 for Ted, Query~2 reads that same string back out of the database as
 \texttt{\$favourite} and appends it to the end of a new query it is
 building. With Ted's session \texttt{\$id} equal to \texttt{5}, the
@@ -514,7 +496,7 @@ queries does:
 \end{tabularx}
 \par}
 
-\paragraph{Step 4: the result.} Figure~\ref{fig:q1-5-tasks-view-two-tables}
+\paragraph{Step 4: the result:} Figure~\ref{fig:q1-5-tasks-view-two-tables}
 shows the View Tasks page after this request. It renders two separate
 tables, one for each query above. The first table lists Ted's own two tasks
 (\textit{Back-end dev1}, 30 hours; \textit{Front-end dev2}, 40 hours). The
@@ -531,7 +513,7 @@ time of this request. This matches \texttt{sqllab\_users.sql}, where Alice
 (\texttt{ID=1}) is declared four tasks in the original seed data, more than
 any other user.
 
-\paragraph{Conclusion.} An attacker-controlled string, stored with no
+\paragraph{Conclusion:} An attacker-controlled string, stored with no
 checks by Query~1, was later cut apart and run as a second, independent SQL
 statement by Query~2. That second statement ignored the restriction that
 should have limited results to the logged-in user and instead returned the

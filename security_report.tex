@@ -4,6 +4,10 @@
 \usepackage{intellectus-designreport}
 \usepackage{eso-pic}
 \setlength{\emergencystretch}{4em}
+% Use uniform inter-word spacing everywhere: LaTeX's US-style default widens
+% the gap after a period it takes to end a sentence, which reads as an
+% unwanted double space in justified body text.
+\frenchspacing
 
 % Assignment metadata. Update these fields if the Assignment 3 brief differs.
 \drcourse{INTE2547-2580 Security Testing}
@@ -58,21 +62,14 @@
 \makedrtitle
 \pagenumbering{arabic}
 \begingroup
-\fontsize{11.5}{15}\selectfont
+\fontsize{11.5}{27}\selectfont
 \setlength{\parskip}{1.5pt}
 \tableofcontents
 \endgroup
 \clearpage
 
 \input{sections/section1}
-% Add further modular sections as the Assignment 3 brief requires:
-% \input{sections/section2}
-% \input{sections/section3}
-
-\appendix
-\clearpage
-\section*{Appendix}
-\addcontentsline{toc}{section}{Appendix}
-\input{sections/appendix}
+\input{sections/section2}
+\input{sections/section3}
 
 \end{document}

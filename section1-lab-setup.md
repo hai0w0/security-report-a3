@@ -7,6 +7,14 @@ after the VM is rebooted. This is infrastructure setup only — it does not
 contain any of the SQL injection payloads themselves (see
 `section1-lab-guide.md` for those).
 
+⚠️ **This lab cannot run at the same time as `Labsetup-xss`** — the two
+Docker Compose files use the identical network name, subnet, and container
+IPs, and an identical MySQL container name (`mysql-10.9.0.6`). See
+`section2-lab-setup.md` §2–3 and §7 before switching between them; switching
+away from this lab with `docker-compose down` is safe (its data is
+bind-mounted to `mysql_data/`), but switching away from the XSS lab is not
+(its database is not persisted).
+
 ## 0. Location
 
 All commands below are run from the folder that contains `docker-compose.yml`
